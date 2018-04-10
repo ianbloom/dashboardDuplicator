@@ -69,6 +69,11 @@ deviceGroupArray.each{ item ->
 	// Create widgetTokens based on the fullPath of device subgroup
 	widgetTokens.add("{'name':'defaultDeviceGroup','value':${item.fullPath}}");
 	//print(widgetTokens);
+
+	postPayload = [:];
+	postPayload['widgetTokens'] = widgetTokens;
+	json = JsonOutput.toJson(postPayload);
+	print(json);
 	
 	
 }
