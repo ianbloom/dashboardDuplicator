@@ -10,85 +10,70 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import org.apache.commons.codec.binary.Hex;
 import groovy.json.JsonSlurper;
+import groovy.json.JsonOutput;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.entity.ContentType;
+
 
 def accessId = "dSpe6j9eTQXs3Iph7jCU";
 def accessKey = "dcm!p2d2w79V=5f}+[354xL=g{k442Y6h5qV}C_6";
 def account = "ianbloom";
+
+// goldenDash is the ID of the goldenDash
+// might have to get this by name in prod script
+def goldenDash = '98';
+def dashboardGroup = '11';
+def deviceGroup = '39';
 def requestVerb = 'GET';
-def resourcePath = '/dashboard/dashboards/98/widgets';
-def queryParameters = '';
+def resourcePath = "/dashboard/dashboards/${goldenDash}";
+// We need template=true to copy widget position
+def queryParameters = '?template=true';
 def data = '';
-/*
-{
-    "id" : 98,
-    "groupId" : 1,
-    "name" : "goldenDash",
-    "fullName" : "goldenDash",
-    "description" : "",
-    "sharable" : true,
-    "owner" : "",
-    "widgetsOrder" : "",
-    "userPermission" : "write",
-    "groupName" : "ianbloom",
-    "groupFullPath" : "",
-    "widgetTokens" : [ ],
-    "widgetsConfig" : { },
-    "template" : null
-  } 
-*/
-/*
-"widgetsConfig" : {
-            "113" : {
-              "col" : 1,
-              "sizex" : 4,
-              "row" : 1,
-              "sizey" : 2
-            },
-            "114" : {
-              "col" : 5,
-              "sizex" : 2,
-              "row" : 1,
-              "sizey" : 4
-            },
-            "115" : {
-              "col" : 1,
-              "sizex" : 4,
-              "row" : 3,
-              "sizey" : 2
-            }
-*/
           
+////////////////////////////
+// GET DASHBOARD TEMPLATE //
+////////////////////////////
 
 responseDict = LMGET(accessId, accessKey, account, requestVerb, resourcePath, queryParameters, data);
 responseBody = responseDict.body;
+// Parse responseBody (JSON string) as JSON object
+template = new JsonSlurper().parseText(responseBody);
+println(template);
+
+// SUPER COOL: This takes a JSON object and creates a JSON string out of it
+//json = JsonOutput.toJson(template);
+//println(json);
+
+///////////////////////
+// GET DEVICE GROUPS //
+///////////////////////
+
+requestVerb = 'GET';
+resourcePath = "/device/groups";
+queryParameters = "?filter=parentId~${deviceGroup}";
+data = '';
+
+responseDict = LMGET(accessId, accessKey, account, requestVerb, resourcePath, queryParameters, data);
+responseBody = responseDict.body;
+// Parse responseBody (JSON string) as JSON object
 output = new JsonSlurper().parseText(responseBody);
+deviceGroupArray = output.items;
 
 
-widgetsArray = output.items;
+////////////////////////////////////////////
+// CONSTRUCT PAYLOAD FOR DASHBOARD COPIES //
+////////////////////////////////////////////
 
-// Initialize widgetsConfig array to hold widgetsConfig for dashboard configuration
-widgetsConfig = [:];
-
-widgetsArray.each { widget ->
-	widgetsConfig[widget.id] = [:];
-	widgetsConfig[widget.id]['col'] = widget.order;
-	widgetsConfig[widget.id]['sizex'] = widget.colSpan;
-	widgetsConfig[widget.id]['row'] = widget.columnIdx;
-	widgetsConfig[widget.id]['sizey'] = widget.rowSpan
+deviceGroupArray.each{ item ->
+	widgetTokens = [];
+	// Create widgetTokens based on the fullPath of device subgroup
+	widgetTokens.add("{'name':'defaultDeviceGroup','value':${item.fullPath}}");
+	//print(widgetTokens);
+	
+	
 }
 
-println(widgetsConfig);
 return 0;
-
-
-
-
-
-
-
-
 
 /////////////////////////////////////
 // Santa's Little Helper Functions //
