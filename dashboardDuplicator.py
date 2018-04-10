@@ -40,41 +40,22 @@ signature = base64.b64encode(authCode.encode())
 auth = 'LMv1 ' + AccessId + ':' + signature.decode() + ':' + epoch
 headers = {'Content-Type':'application/json','Authorization':auth,'X-Version':'2'}
 
-# Make request
+# Make request for dashboard template
 response = requests.get(url, data=data, headers=headers)
-payload = json.loads(response.content)
-print("OUTPUT FROM GET: \n")
-print(payload)
 
-#Print status and body of response
-#print('Response Status:',response.status_code)
-#print('Response Body:',response.content)
+# Capture response.content as string and convert into navigable JSON
+template = json.loads(response.content)
 
-widgetTokens = []
-nameValue = {}
-nameValue['name'] = "defaultDeviceGroup"
-nameValue['value'] = "USA"
-widgetTokens.append(nameValue)
-
-
-# Begin constructing data payload for POSTs to dashboard resource
-postPayload = {}
-# Name is a mandatory field
-postPayload['name'] = "black swan"
-postPayload['sharable'] = True
-postPayload['groupId'] = deviceGroups
-postPayload['template'] = payload
-postPayload['widgetTokens'] = widgetTokens
-finalJSON = json.dumps(postPayload)
+############
+#  POSTER  #
+############
 
 # Request Info
-httpVerb ='POST'
-resourcePath = '/dashboard/dashboards'
+httpVerb ='GET'
+resourcePath = '/device/groups'
 queryParams = ''
 # Data payload is EMPTY for GET requests
-data = finalJSON
-print("MODIFIED: \n")
-print(data + '\n')
+data = ''
 
 # Construct URL 
 url = 'https://'+ account +'.logicmonitor.com/santaba/rest' + resourcePath + queryParams
@@ -93,8 +74,63 @@ signature = base64.b64encode(authCode.encode())
 auth = 'LMv1 ' + AccessId + ':' + signature.decode() + ':' + epoch
 headers = {'Content-Type':'application/json','Authorization':auth,'X-Version':'2'}
 
-# Make request
-response = requests.post(url, data=data, headers=headers)
-payload = json.loads(response.content)
-print("FROM THE POST: \n")
-print(payload)
+# Make request for dashboard template
+response = requests.get(url, data=data, headers=headers)
+
+# Format response body as JSON
+responseJSON = json.loads(response.content)
+items = responseJSON['items']
+for item in items:
+	print(item['fullPath'])
+
+	# Initialize array to contain widgetTokens
+	widgetTokens = []
+
+	# Initialize dictionary to hold an individual widgetToken (NVP)
+	nameValue = {}
+	nameValue['name'] = "defaultDeviceGroup"
+	nameValue['value'] = item['fullPath']
+	widgetTokens.append(nameValue)
+
+	# Begin constructing data payload for POSTs to dashboard resource
+	postPayload = {}
+	# Name is a mandatory field
+	postPayload['name'] = item['name']
+	postPayload['sharable'] = True
+	postPayload['groupId'] = deviceGroups
+	postPayload['template'] = template
+	# widgetTokens is assigned at the root level of the JSON payload
+	postPayload['widgetTokens'] = widgetTokens
+	finalJSON = json.dumps(postPayload)
+
+	# Request Info
+	httpVerb ='POST'
+	resourcePath = '/dashboard/dashboards'
+	queryParams = ''
+	# Data payload is EMPTY for GET requests
+	data = finalJSON
+
+	# Construct URL 
+	url = 'https://'+ account +'.logicmonitor.com/santaba/rest' + resourcePath + queryParams
+
+	# Get current time in milliseconds
+	epoch = str(int(time.time() * 1000))
+
+	# Concatenate Request details
+	requestVars = httpVerb + epoch + data + resourcePath
+
+	# Construct signature
+	authCode = hmac.new(AccessKey.encode(),msg=requestVars.encode(),digestmod=hashlib.sha256).hexdigest()
+	signature = base64.b64encode(authCode.encode())
+
+	# Construct headers
+	auth = 'LMv1 ' + AccessId + ':' + signature.decode() + ':' + epoch
+	headers = {'Content-Type':'application/json','Authorization':auth,'X-Version':'2'}
+
+	# Make request
+	response = requests.post(url, data=data, headers=headers)
+	payload = json.loads(response.content)
+	print("FROM THE POST: \n")
+	print(payload)
+print("CODE: \n")
+print(response.status_code)
