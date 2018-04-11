@@ -3,6 +3,7 @@ import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
+import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients
 import org.apache.http.util.EntityUtils;
@@ -22,7 +23,7 @@ def account = "ianbloom";
 // goldenDash is the ID of the goldenDash
 // might have to get this by name in prod script
 def goldenDash = '98';
-def dashboardGroup = '11';
+def dashboardGroup = 11;
 def deviceGroup = '39';
 def requestVerb = 'GET';
 def resourcePath = "/dashboard/dashboards/${goldenDash}";
@@ -38,11 +39,6 @@ responseDict = LMGET(accessId, accessKey, account, requestVerb, resourcePath, qu
 responseBody = responseDict.body;
 // Parse responseBody (JSON string) as JSON object
 template = new JsonSlurper().parseText(responseBody);
-println(template);
-
-// SUPER COOL: This takes a JSON object and creates a JSON string out of it
-//json = JsonOutput.toJson(template);
-//println(json);
 
 ///////////////////////
 // GET DEVICE GROUPS //
@@ -65,17 +61,139 @@ deviceGroupArray = output.items;
 ////////////////////////////////////////////
 
 deviceGroupArray.each{ item ->
-	widgetTokens = [];
-	// Create widgetTokens based on the fullPath of device subgroup
-	widgetTokens.add("{'name':'defaultDeviceGroup','value':${item.fullPath}}");
-	//print(widgetTokens);
+	
+	//////////////////////
+	// GET DASHBOARD ID //
+	//////////////////////
 
-	postPayload = [:];
-	postPayload['widgetTokens'] = widgetTokens;
-	json = JsonOutput.toJson(postPayload);
-	print(json);
-	
-	
+	requestVerb = 'GET';
+	resourcePath = "/dashboard/dashboards";
+	queryParameters = "?filter=name:${item.name},groupId:${dashboardGroup}";
+	//queryParameters = "?filter=groupId:${dashboardGroup}";
+	// Use json constructed earlier as payload for POST
+	data = '';
+
+	responseDict = LMGET(accessId, accessKey, account, requestVerb, resourcePath, queryParameters, data);
+	responseBody = responseDict.body;
+	responseCode = responseDict.code;
+	//println("responseCode: ${responseCode}");
+	//println("responseBody: ${responseBody}");
+	output = new JsonSlurper().parseText(responseBody);
+
+	// If the dashboard does not exist yet, then POST
+	if(output.total == 0) {
+
+		///////////////////
+		// BUILD PAYLOAD //
+		///////////////////
+
+		// widgetTokens must be an array containing a series of NVPs
+		widgetTokens = [];
+		widgetTokensDict = [:];
+		widgetTokensDict['name'] = 'defaultDeviceGroup';
+		widgetTokensDict['value'] = "${item.fullPath}";
+		// Create widgetTokens based on the fullPath of device subgroup
+		widgetTokens.add(widgetTokensDict);
+
+		// Initialize postPayload dictionary to begin constructing POST JSON
+		postPayload = [:];
+		postPayload['widgetTokens'] = widgetTokens;
+		postPayload['sharable'] = true;
+		postPayload['name'] = item.name;
+		postPayload['groupId'] = dashboardGroup;
+		// Append template that was obtained from the Golden Dash
+		postPayload['template'] = template;
+
+		// Transform JSON into JSON string
+		json = JsonOutput.toJson(postPayload);
+		//println(json);
+
+		///////////////////////////
+		// POST DASHBOARD COPIES //
+		///////////////////////////
+
+		requestVerb = 'POST';
+		resourcePath = "/dashboard/dashboards";
+		queryParameters = '';
+		// Use json constructed earlier as payload for POST
+		data = json;
+
+		responseDict = LMPOST(accessId, accessKey, account, requestVerb, resourcePath, queryParameters, data);
+		responseBody = responseDict.body;
+		responseCode = responseDict.code;
+		println("Response Code: ${responseCode}");
+		println("Response Body: ${responseBody}");
+		// Parse responseBody (JSON string) as JSON object
+		output = new JsonSlurper().parseText(responseBody);
+		
+	}
+	// If the dashboard DOES exist, capture its ID then DELETE and replace with POST
+	else {
+		dashId = output.items[0].id;
+		println("Dashboard ID: ${dashId}");
+		
+		/////////////////////
+		// DELETE ORIGINAL //
+		/////////////////////
+
+		requestVerb = 'DELETE';
+		resourcePath = "/dashboard/dashboards/${dashId}";
+		queryParameters = '';
+		// Use json constructed earlier as payload for POST
+		data = '';
+
+		responseDict = LMDELETE(accessId, accessKey, account, requestVerb, resourcePath, queryParameters, data);
+		responseBody = responseDict.body;
+		responseCode = responseDict.code;
+		println("DELETE CODE: ${responseCode}");
+		println("DELETE BODY: ${responseBody}");
+		
+		
+		///////////////////
+		// BUILD PAYLOAD //
+		///////////////////
+
+		// widgetTokens must be an array containing a series of NVPs
+		widgetTokens = [];
+		widgetTokensDict = [:];
+		widgetTokensDict['name'] = 'defaultDeviceGroup';
+		widgetTokensDict['value'] = "${item.fullPath}";
+		// Create widgetTokens based on the fullPath of device subgroup
+		widgetTokens.add(widgetTokensDict);
+
+		// Initialize postPayload dictionary to begin constructing POST JSON
+		postPayload = [:];
+		postPayload['widgetTokens'] = widgetTokens;
+		postPayload['sharable'] = true;
+		postPayload['name'] = item.name;
+		postPayload['groupId'] = dashboardGroup;
+		// Append template that was obtained from the Golden Dash
+		postPayload['template'] = template;
+
+		// Transform JSON into JSON string
+		json = JsonOutput.toJson(postPayload);
+		//println(json);
+
+		///////////////////////////
+		// POST DASHBOARD COPIES //
+		///////////////////////////
+
+		requestVerb = 'POST';
+		//resourcePath = "/dashboard/dashboards/${dashId}";
+		resourcePath = "/dashboard/dashboards";
+
+		queryParameters = '';
+		// Use json constructed earlier as payload for POST
+		data = json;
+
+		responseDict = LMPOST(accessId, accessKey, account, requestVerb, resourcePath, queryParameters, data);
+		responseBody = responseDict.body;
+		responseCode = responseDict.code;
+		println("Response Code: ${responseCode}");
+		println("Response Body: ${responseBody}");
+		// Parse responseBody (JSON string) as JSON object
+		output = new JsonSlurper().parseText(responseBody);
+	}
 }
 
 return 0;
@@ -112,6 +230,7 @@ def LMPUT(_accessId, _accessKey, _account, _requestVerb, _resourcePath, _queryPa
 	http_request.addHeader("Authorization" , "LMv1 " + _accessId + ":" + signature + ":" + epoch);
 	http_request.setHeader("Accept", "application/json");
 	http_request.setHeader("Content-type", "application/json");
+	http_request.setHeader("X-Version", "2");
 	http_request.setEntity(params);
 	response = httpclient.execute(http_request);
 	responseBody = EntityUtils.toString(response.getEntity());
@@ -188,6 +307,43 @@ def LMPOST(_accessId, _accessKey, _account, _requestVerb, _resourcePath, _queryP
 	http_request.setHeader("Accept", "application/json");
 	http_request.setHeader("Content-type", "application/json");
 	http_request.setEntity(params);
+	response = httpclient.execute(http_request);
+	responseBody = EntityUtils.toString(response.getEntity());
+	code = response.getStatusLine().getStatusCode();
+
+	responseDict['code'] = code;
+	responseDict['body'] = responseBody
+	
+	return responseDict;
+}
+
+def LMDELETE(_accessId, _accessKey, _account, _requestVerb, _resourcePath, _queryParameters, _data) {
+
+	// Initialize dictionary to hold response code and response body
+	responseDict = [:];
+
+	// Construcst URL to POST to from specified input
+	url = 'https://' + _account + '.logicmonitor.com' + '/santaba/rest' + _resourcePath + _queryParameters;
+
+	StringEntity params = new StringEntity(_data,ContentType.APPLICATION_JSON);
+
+	// Get current time
+	epoch = System.currentTimeMillis();
+
+	// Calculate signature
+	requestVars = _requestVerb + epoch + _data + _resourcePath;
+
+	hmac = Mac.getInstance('HmacSHA256');
+	secret = new SecretKeySpec(_accessKey.getBytes(), 'HmacSHA256');
+	hmac.init(secret);
+	hmac_signed = Hex.encodeHexString(hmac.doFinal(requestVars.getBytes()));
+	signature = hmac_signed.bytes.encodeBase64();
+
+	// HTTP Get
+	CloseableHttpClient httpclient = HttpClients.createDefault();
+	http_request = new HttpDelete(url);
+	http_request.addHeader("Authorization" , "LMv1 " + _accessId + ":" + signature + ":" + epoch);
+	http_request.setHeader("X-Version", "2");
 	response = httpclient.execute(http_request);
 	responseBody = EntityUtils.toString(response.getEntity());
 	code = response.getStatusLine().getStatusCode();
