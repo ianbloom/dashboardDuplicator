@@ -23,13 +23,16 @@ def account = "ianbloom";
 // goldenDash is the ID of the goldenDash
 // might have to get this by name in prod script
 def goldenDash = '98';
-def dashboardGroup = 11;
+// ID of the dashboardGroup you would like to dump all dashboards into
+def dashboardGroupName = 'Need_A_Place';
+// ID of the device group you would like treat as root group
 def deviceGroup = '39';
 def requestVerb = 'GET';
 def resourcePath = "/dashboard/dashboards/${goldenDash}";
 // We need template=true to copy widget position
 def queryParameters = '?template=true';
 def data = '';
+
           
 ////////////////////////////
 // GET DASHBOARD TEMPLATE //
@@ -55,6 +58,40 @@ responseBody = responseDict.body;
 output = new JsonSlurper().parseText(responseBody);
 deviceGroupArray = output.items;
 
+/////////////////////////
+// GET DASHBOARD GROUP //
+/////////////////////////
+
+requestVerb = 'GET';
+resourcePath = "/dashboard/groups";
+queryParameters = "?filter=name~${dashboardGroupName}";
+data = '';
+
+responseDict = LMGET(accessId, accessKey, account, requestVerb, resourcePath, queryParameters, data);
+responseBody = responseDict.body;
+// Parse responseBody (JSON string) as JSON object
+output = new JsonSlurper().parseText(responseBody);
+// If the dashboard group already exists
+if(output.total == 1) {
+	dashboardGroup = output.items[0].id;
+}
+else {
+	requestVerb = 'POST';
+	resourcePath = "/dashboard/groups";
+	queryParameters = "";
+	data = '{"name":"' + dashboardGroupName + '"}';
+
+	responseDict = LMPOST(accessId, accessKey, account, requestVerb, resourcePath, queryParameters, data);
+	responseBody = responseDict.body;
+	// Parse responseBody (JSON string) as JSON object
+	output = new JsonSlurper().parseText(responseBody);
+	dashboardGroup = output.id;
+}
+
+responseBody = responseDict.body;
+responseCode = responseDict.code;
+println("Response Code: ${responseCode}");
+println("Response Body: ${responseBody}");
 
 ////////////////////////////////////////////
 // CONSTRUCT PAYLOAD FOR DASHBOARD COPIES //
