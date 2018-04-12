@@ -50,10 +50,10 @@ if(fileExists && groupFileExists) {
 	queryParameters = '?template=true';
 	data = '';
 
-	responseDict = LMGET(accessId, accessKey, account, requestVerb, resourcePath, queryParameters, data);
-	responseBody = responseDict.body;
+	responseDict1 = LMGET(accessId, accessKey, account, requestVerb, resourcePath, queryParameters, data);
+	responseBody1 = responseDict.body;
 	// Parse responseBody (JSON string) as JSON object
-	template = new JsonSlurper().parseText(responseBody);
+	template = new JsonSlurper().parseText(responseBody1);
 
 	////////////////////////
 	// GET GROUP TEMPLATE //
@@ -68,7 +68,7 @@ if(fileExists && groupFileExists) {
 	responseBody2 = responseDict.body;
 
 	// Check if current goldenDash matches file
-	if(file == responseBody && file2 == responseBody2) {
+	if(file == responseBody1 && file2 == responseBody2) {
 		println('MATCH');
 		return 0;
 	}
@@ -80,7 +80,7 @@ if(fileExists && groupFileExists) {
 		////////////////////////////
 
 		file = new File(fileName);
-		file.write(responseBody);
+		file.write(responseBody1);
 		
 		file2 = new File(groupFileName);
 		file2.write(responseBody2);
