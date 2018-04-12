@@ -19,7 +19,6 @@ import org.apache.http.entity.ContentType;
 def accessId = "dSpe6j9eTQXs3Iph7jCU";
 def accessKey = "dcm!p2d2w79V=5f}+[354xL=g{k442Y6h5qV}C_6";
 def account = "ianbloom";
-
 // goldenDash is the ID of the goldenDash
 // might have to get this by name in prod script
 def goldenDash = '98';
@@ -27,211 +26,454 @@ def goldenDash = '98';
 def dashboardGroupName = 'Need_A_Place';
 // ID of the device group you would like treat as root group
 def deviceGroup = '39';
-def requestVerb = 'GET';
-def resourcePath = "/dashboard/dashboards/${goldenDash}";
-// We need template=true to copy widget position
-def queryParameters = '?template=true';
-def data = '';
+def fileName = 'goldenDash.txt';
 
-          
-////////////////////////////
-// GET DASHBOARD TEMPLATE //
-////////////////////////////
+// fileExists is a boolean value that tests for the existence of a template
+// if !fileExists then this is first run, and we create the file
+def fileExists = new File(fileName).exists();
 
-responseDict = LMGET(accessId, accessKey, account, requestVerb, resourcePath, queryParameters, data);
-responseBody = responseDict.body;
-// Parse responseBody (JSON string) as JSON object
-template = new JsonSlurper().parseText(responseBody);
-
-///////////////////////
-// GET DEVICE GROUPS //
-///////////////////////
-
-requestVerb = 'GET';
-resourcePath = "/device/groups";
-queryParameters = "?filter=parentId~${deviceGroup}";
-data = '';
-
-responseDict = LMGET(accessId, accessKey, account, requestVerb, resourcePath, queryParameters, data);
-responseBody = responseDict.body;
-// Parse responseBody (JSON string) as JSON object
-output = new JsonSlurper().parseText(responseBody);
-deviceGroupArray = output.items;
-
-/////////////////////////
-// GET DASHBOARD GROUP //
-/////////////////////////
-
-requestVerb = 'GET';
-resourcePath = "/dashboard/groups";
-queryParameters = "?filter=name~${dashboardGroupName}";
-data = '';
-
-responseDict = LMGET(accessId, accessKey, account, requestVerb, resourcePath, queryParameters, data);
-responseBody = responseDict.body;
-// Parse responseBody (JSON string) as JSON object
-output = new JsonSlurper().parseText(responseBody);
-// If the dashboard group already exists
-if(output.total == 1) {
-	dashboardGroup = output.items[0].id;
-}
-else {
-	requestVerb = 'POST';
-	resourcePath = "/dashboard/groups";
-	queryParameters = "";
-	data = '{"name":"' + dashboardGroupName + '"}';
-
-	responseDict = LMPOST(accessId, accessKey, account, requestVerb, resourcePath, queryParameters, data);
-	responseBody = responseDict.body;
-	// Parse responseBody (JSON string) as JSON object
-	output = new JsonSlurper().parseText(responseBody);
-	dashboardGroup = output.id;
-}
-
-responseBody = responseDict.body;
-responseCode = responseDict.code;
-println("Response Code: ${responseCode}");
-println("Response Body: ${responseBody}");
-
-////////////////////////////////////////////
-// CONSTRUCT PAYLOAD FOR DASHBOARD COPIES //
-////////////////////////////////////////////
-
-deviceGroupArray.each{ item ->
+if(fileExists) {
+	println('the file exists');
+	// Open the file as text for comparison to current goldenDash template
+	file = new File(fileName).text;
 	
-	//////////////////////
-	// GET DASHBOARD ID //
-	//////////////////////
+	////////////////////////////
+	// GET DASHBOARD TEMPLATE //
+	////////////////////////////
 
 	requestVerb = 'GET';
-	resourcePath = "/dashboard/dashboards";
-	queryParameters = "?filter=name:${item.name},groupId:${dashboardGroup}";
-	//queryParameters = "?filter=groupId:${dashboardGroup}";
-	// Use json constructed earlier as payload for POST
+	resourcePath = "/dashboard/dashboards/${goldenDash}";
+	// We need template=true to copy widget position
+	queryParameters = '?template=true';
 	data = '';
 
 	responseDict = LMGET(accessId, accessKey, account, requestVerb, resourcePath, queryParameters, data);
 	responseBody = responseDict.body;
-	responseCode = responseDict.code;
-	//println("responseCode: ${responseCode}");
-	//println("responseBody: ${responseBody}");
-	output = new JsonSlurper().parseText(responseBody);
 
-	// If the dashboard does not exist yet, then POST
-	if(output.total == 0) {
+	// Check if current goldenDash matches file
+	if(file == responseBody) {
+		println('MATCH');
+		return 0;
+	}
+	else {
+		println('NO MATCH');
+		// Parse responseBody (JSON string) as JSON object
+		template = new JsonSlurper().parseText(responseBody);
 
-		///////////////////
-		// BUILD PAYLOAD //
-		///////////////////
+		////////////////////////////
+		// WRITE TEMPLATE TO FILE //
+		////////////////////////////
 
-		// widgetTokens must be an array containing a series of NVPs
-		widgetTokens = [];
-		widgetTokensDict = [:];
-		widgetTokensDict['name'] = 'defaultDeviceGroup';
-		widgetTokensDict['value'] = "${item.fullPath}";
-		// Create widgetTokens based on the fullPath of device subgroup
-		widgetTokens.add(widgetTokensDict);
+		file = new File(fileName);
+		file.write(responseBody);
 
-		// Initialize postPayload dictionary to begin constructing POST JSON
-		postPayload = [:];
-		postPayload['widgetTokens'] = widgetTokens;
-		postPayload['sharable'] = true;
-		postPayload['name'] = item.name;
-		postPayload['groupId'] = dashboardGroup;
-		// Append template that was obtained from the Golden Dash
-		postPayload['template'] = template;
+		///////////////////////
+		// GET DEVICE GROUPS //
+		///////////////////////
 
-		// Transform JSON into JSON string
-		json = JsonOutput.toJson(postPayload);
-		//println(json);
+		requestVerb = 'GET';
+		resourcePath = "/device/groups";
+		queryParameters = "?filter=parentId~${deviceGroup}";
+		data = '';
 
-		///////////////////////////
-		// POST DASHBOARD COPIES //
-		///////////////////////////
+		responseDict = LMGET(accessId, accessKey, account, requestVerb, resourcePath, queryParameters, data);
+		responseBody = responseDict.body;
+		// Parse responseBody (JSON string) as JSON object
+		output = new JsonSlurper().parseText(responseBody);
+		deviceGroupArray = output.items;
 
-		requestVerb = 'POST';
-		resourcePath = "/dashboard/dashboards";
-		queryParameters = '';
-		// Use json constructed earlier as payload for POST
-		data = json;
+		/////////////////////////
+		// GET DASHBOARD GROUP //
+		/////////////////////////
 
-		responseDict = LMPOST(accessId, accessKey, account, requestVerb, resourcePath, queryParameters, data);
+		requestVerb = 'GET';
+		resourcePath = "/dashboard/groups";
+		queryParameters = "?filter=name~${dashboardGroupName}";
+		data = '';
+
+		responseDict = LMGET(accessId, accessKey, account, requestVerb, resourcePath, queryParameters, data);
+		responseBody = responseDict.body;
+		// Parse responseBody (JSON string) as JSON object
+		output = new JsonSlurper().parseText(responseBody);
+		// If the dashboard group already exists
+		if(output.total == 1) {
+			dashboardGroup = output.items[0].id;
+		}
+		else {
+			requestVerb = 'POST';
+			resourcePath = "/dashboard/groups";
+			queryParameters = "";
+			data = '{"name":"' + dashboardGroupName + '"}';
+
+			responseDict = LMPOST(accessId, accessKey, account, requestVerb, resourcePath, queryParameters, data);
+			responseBody = responseDict.body;
+			// Parse responseBody (JSON string) as JSON object
+			output = new JsonSlurper().parseText(responseBody);
+			dashboardGroup = output.id;
+		}
+
 		responseBody = responseDict.body;
 		responseCode = responseDict.code;
 		println("Response Code: ${responseCode}");
 		println("Response Body: ${responseBody}");
+
+		////////////////////////////////////////////
+		// CONSTRUCT PAYLOAD FOR DASHBOARD COPIES //
+		////////////////////////////////////////////
+
+		deviceGroupArray.each{ item ->
+
+			//////////////////////
+			// GET DASHBOARD ID //
+			//////////////////////
+
+			requestVerb = 'GET';
+			resourcePath = "/dashboard/dashboards";
+			queryParameters = "?filter=name:${item.name},groupId:${dashboardGroup}";
+			//queryParameters = "?filter=groupId:${dashboardGroup}";
+			// Use json constructed earlier as payload for POST
+			data = '';
+
+			responseDict = LMGET(accessId, accessKey, account, requestVerb, resourcePath, queryParameters, data);
+			responseBody = responseDict.body;
+			responseCode = responseDict.code;
+			//println("responseCode: ${responseCode}");
+			//println("responseBody: ${responseBody}");
+			output = new JsonSlurper().parseText(responseBody);
+
+			// If the dashboard does not exist yet, then POST
+			if(output.total == 0) {
+
+				///////////////////
+				// BUILD PAYLOAD //
+				///////////////////
+
+				// widgetTokens must be an array containing a series of NVPs
+				widgetTokens = [];
+				widgetTokensDict = [:];
+				widgetTokensDict['name'] = 'defaultDeviceGroup';
+				widgetTokensDict['value'] = "${item.fullPath}";
+				// Create widgetTokens based on the fullPath of device subgroup
+				widgetTokens.add(widgetTokensDict);
+
+				// Initialize postPayload dictionary to begin constructing POST JSON
+				postPayload = [:];
+				postPayload['widgetTokens'] = widgetTokens;
+				postPayload['sharable'] = true;
+				postPayload['name'] = item.name;
+				postPayload['groupId'] = dashboardGroup;
+				// Append template that was obtained from the Golden Dash
+				postPayload['template'] = template;
+
+				// Transform JSON into JSON string
+				json = JsonOutput.toJson(postPayload);
+				//println(json);
+
+				///////////////////////////
+				// POST DASHBOARD COPIES //
+				///////////////////////////
+
+				requestVerb = 'POST';
+				resourcePath = "/dashboard/dashboards";
+				queryParameters = '';
+				// Use json constructed earlier as payload for POST
+				data = json;
+
+				responseDict = LMPOST(accessId, accessKey, account, requestVerb, resourcePath, queryParameters, data);
+				responseBody = responseDict.body;
+				responseCode = responseDict.code;
+				println("Response Code: ${responseCode}");
+				println("Response Body: ${responseBody}");
+				// Parse responseBody (JSON string) as JSON object
+				output = new JsonSlurper().parseText(responseBody);
+
+			}
+			// If the dashboard DOES exist, capture its ID then DELETE and replace with POST
+			else {
+				dashId = output.items[0].id;
+				println("Dashboard ID: ${dashId}");
+
+				/////////////////////
+				// DELETE ORIGINAL //
+				/////////////////////
+
+				requestVerb = 'DELETE';
+				resourcePath = "/dashboard/dashboards/${dashId}";
+				queryParameters = '';
+				// Use json constructed earlier as payload for POST
+				data = '';
+
+				responseDict = LMDELETE(accessId, accessKey, account, requestVerb, resourcePath, queryParameters, data);
+				responseBody = responseDict.body;
+				responseCode = responseDict.code;
+				println("DELETE CODE: ${responseCode}");
+				println("DELETE BODY: ${responseBody}");
+
+
+				///////////////////
+				// BUILD PAYLOAD //
+				///////////////////
+
+				// widgetTokens must be an array containing a series of NVPs
+				widgetTokens = [];
+				widgetTokensDict = [:];
+				widgetTokensDict['name'] = 'defaultDeviceGroup';
+				widgetTokensDict['value'] = "${item.fullPath}";
+				// Create widgetTokens based on the fullPath of device subgroup
+				widgetTokens.add(widgetTokensDict);
+
+				// Initialize postPayload dictionary to begin constructing POST JSON
+				postPayload = [:];
+				postPayload['widgetTokens'] = widgetTokens;
+				postPayload['sharable'] = true;
+				postPayload['name'] = item.name;
+				postPayload['groupId'] = dashboardGroup;
+				// Append template that was obtained from the Golden Dash
+				postPayload['template'] = template;
+
+				// Transform JSON into JSON string
+				json = JsonOutput.toJson(postPayload);
+				//println(json);
+
+				///////////////////////////
+				// POST DASHBOARD COPIES //
+				///////////////////////////
+
+				requestVerb = 'POST';
+				//resourcePath = "/dashboard/dashboards/${dashId}";
+				resourcePath = "/dashboard/dashboards";
+
+				queryParameters = '';
+				// Use json constructed earlier as payload for POST
+				data = json;
+
+				responseDict = LMPOST(accessId, accessKey, account, requestVerb, resourcePath, queryParameters, data);
+				responseBody = responseDict.body;
+				responseCode = responseDict.code;
+				println("Response Code: ${responseCode}");
+				println("Response Body: ${responseBody}");
+				// Parse responseBody (JSON string) as JSON object
+				output = new JsonSlurper().parseText(responseBody);
+			}
+		}
+	}
+}
+else {
+
+	////////////////////////////
+	// GET DASHBOARD TEMPLATE //
+	////////////////////////////
+
+	requestVerb = 'GET';
+	resourcePath = "/dashboard/dashboards/${goldenDash}";
+	// We need template=true to copy widget position
+	queryParameters = '?template=true';
+	data = '';
+
+	responseDict = LMGET(accessId, accessKey, account, requestVerb, resourcePath, queryParameters, data);
+	responseBody = responseDict.body;
+
+	// Parse responseBody (JSON string) as JSON object
+	template = new JsonSlurper().parseText(responseBody);
+
+	////////////////////////////
+	// WRITE TEMPLATE TO FILE //
+	////////////////////////////
+
+	file = new File(fileName);
+	file.write(responseBody);
+	
+	///////////////////////
+	// GET DEVICE GROUPS //
+	///////////////////////
+
+	requestVerb = 'GET';
+	resourcePath = "/device/groups";
+	queryParameters = "?filter=parentId~${deviceGroup}";
+	data = '';
+
+	responseDict = LMGET(accessId, accessKey, account, requestVerb, resourcePath, queryParameters, data);
+	responseBody = responseDict.body;
+	// Parse responseBody (JSON string) as JSON object
+	output = new JsonSlurper().parseText(responseBody);
+	deviceGroupArray = output.items;
+
+	/////////////////////////
+	// GET DASHBOARD GROUP //
+	/////////////////////////
+
+	requestVerb = 'GET';
+	resourcePath = "/dashboard/groups";
+	queryParameters = "?filter=name~${dashboardGroupName}";
+	data = '';
+
+	responseDict = LMGET(accessId, accessKey, account, requestVerb, resourcePath, queryParameters, data);
+	responseBody = responseDict.body;
+	// Parse responseBody (JSON string) as JSON object
+	output = new JsonSlurper().parseText(responseBody);
+	// If the dashboard group already exists
+	if(output.total == 1) {
+		dashboardGroup = output.items[0].id;
+	}
+	else {
+		requestVerb = 'POST';
+		resourcePath = "/dashboard/groups";
+		queryParameters = "";
+		data = '{"name":"' + dashboardGroupName + '"}';
+
+		responseDict = LMPOST(accessId, accessKey, account, requestVerb, resourcePath, queryParameters, data);
+		responseBody = responseDict.body;
 		// Parse responseBody (JSON string) as JSON object
 		output = new JsonSlurper().parseText(responseBody);
-		
+		dashboardGroup = output.id;
 	}
-	// If the dashboard DOES exist, capture its ID then DELETE and replace with POST
-	else {
-		dashId = output.items[0].id;
-		println("Dashboard ID: ${dashId}");
-		
-		/////////////////////
-		// DELETE ORIGINAL //
-		/////////////////////
 
-		requestVerb = 'DELETE';
-		resourcePath = "/dashboard/dashboards/${dashId}";
-		queryParameters = '';
+	responseBody = responseDict.body;
+	responseCode = responseDict.code;
+	println("Response Code: ${responseCode}");
+	println("Response Body: ${responseBody}");
+
+	////////////////////////////////////////////
+	// CONSTRUCT PAYLOAD FOR DASHBOARD COPIES //
+	////////////////////////////////////////////
+
+	deviceGroupArray.each{ item ->
+
+		//////////////////////
+		// GET DASHBOARD ID //
+		//////////////////////
+
+		requestVerb = 'GET';
+		resourcePath = "/dashboard/dashboards";
+		queryParameters = "?filter=name:${item.name},groupId:${dashboardGroup}";
+		//queryParameters = "?filter=groupId:${dashboardGroup}";
 		// Use json constructed earlier as payload for POST
 		data = '';
 
-		responseDict = LMDELETE(accessId, accessKey, account, requestVerb, resourcePath, queryParameters, data);
+		responseDict = LMGET(accessId, accessKey, account, requestVerb, resourcePath, queryParameters, data);
 		responseBody = responseDict.body;
 		responseCode = responseDict.code;
-		println("DELETE CODE: ${responseCode}");
-		println("DELETE BODY: ${responseBody}");
-		
-		
-		///////////////////
-		// BUILD PAYLOAD //
-		///////////////////
-
-		// widgetTokens must be an array containing a series of NVPs
-		widgetTokens = [];
-		widgetTokensDict = [:];
-		widgetTokensDict['name'] = 'defaultDeviceGroup';
-		widgetTokensDict['value'] = "${item.fullPath}";
-		// Create widgetTokens based on the fullPath of device subgroup
-		widgetTokens.add(widgetTokensDict);
-
-		// Initialize postPayload dictionary to begin constructing POST JSON
-		postPayload = [:];
-		postPayload['widgetTokens'] = widgetTokens;
-		postPayload['sharable'] = true;
-		postPayload['name'] = item.name;
-		postPayload['groupId'] = dashboardGroup;
-		// Append template that was obtained from the Golden Dash
-		postPayload['template'] = template;
-
-		// Transform JSON into JSON string
-		json = JsonOutput.toJson(postPayload);
-		//println(json);
-
-		///////////////////////////
-		// POST DASHBOARD COPIES //
-		///////////////////////////
-
-		requestVerb = 'POST';
-		//resourcePath = "/dashboard/dashboards/${dashId}";
-		resourcePath = "/dashboard/dashboards";
-
-		queryParameters = '';
-		// Use json constructed earlier as payload for POST
-		data = json;
-
-		responseDict = LMPOST(accessId, accessKey, account, requestVerb, resourcePath, queryParameters, data);
-		responseBody = responseDict.body;
-		responseCode = responseDict.code;
-		println("Response Code: ${responseCode}");
-		println("Response Body: ${responseBody}");
-		// Parse responseBody (JSON string) as JSON object
+		//println("responseCode: ${responseCode}");
+		//println("responseBody: ${responseBody}");
 		output = new JsonSlurper().parseText(responseBody);
+
+		// If the dashboard does not exist yet, then POST
+		if(output.total == 0) {
+
+			///////////////////
+			// BUILD PAYLOAD //
+			///////////////////
+
+			// widgetTokens must be an array containing a series of NVPs
+			widgetTokens = [];
+			widgetTokensDict = [:];
+			widgetTokensDict['name'] = 'defaultDeviceGroup';
+			widgetTokensDict['value'] = "${item.fullPath}";
+			// Create widgetTokens based on the fullPath of device subgroup
+			widgetTokens.add(widgetTokensDict);
+
+			// Initialize postPayload dictionary to begin constructing POST JSON
+			postPayload = [:];
+			postPayload['widgetTokens'] = widgetTokens;
+			postPayload['sharable'] = true;
+			postPayload['name'] = item.name;
+			postPayload['groupId'] = dashboardGroup;
+			// Append template that was obtained from the Golden Dash
+			postPayload['template'] = template;
+
+			// Transform JSON into JSON string
+			json = JsonOutput.toJson(postPayload);
+			//println(json);
+
+			///////////////////////////
+			// POST DASHBOARD COPIES //
+			///////////////////////////
+
+			requestVerb = 'POST';
+			resourcePath = "/dashboard/dashboards";
+			queryParameters = '';
+			// Use json constructed earlier as payload for POST
+			data = json;
+
+			responseDict = LMPOST(accessId, accessKey, account, requestVerb, resourcePath, queryParameters, data);
+			responseBody = responseDict.body;
+			responseCode = responseDict.code;
+			println("Response Code: ${responseCode}");
+			println("Response Body: ${responseBody}");
+			// Parse responseBody (JSON string) as JSON object
+			output = new JsonSlurper().parseText(responseBody);
+
+		}
+		// If the dashboard DOES exist, capture its ID then DELETE and replace with POST
+		else {
+			dashId = output.items[0].id;
+			println("Dashboard ID: ${dashId}");
+
+			/////////////////////
+			// DELETE ORIGINAL //
+			/////////////////////
+
+			requestVerb = 'DELETE';
+			resourcePath = "/dashboard/dashboards/${dashId}";
+			queryParameters = '';
+			// Use json constructed earlier as payload for POST
+			data = '';
+
+			responseDict = LMDELETE(accessId, accessKey, account, requestVerb, resourcePath, queryParameters, data);
+			responseBody = responseDict.body;
+			responseCode = responseDict.code;
+			println("DELETE CODE: ${responseCode}");
+			println("DELETE BODY: ${responseBody}");
+
+
+			///////////////////
+			// BUILD PAYLOAD //
+			///////////////////
+
+			// widgetTokens must be an array containing a series of NVPs
+			widgetTokens = [];
+			widgetTokensDict = [:];
+			widgetTokensDict['name'] = 'defaultDeviceGroup';
+			widgetTokensDict['value'] = "${item.fullPath}";
+			// Create widgetTokens based on the fullPath of device subgroup
+			widgetTokens.add(widgetTokensDict);
+
+			// Initialize postPayload dictionary to begin constructing POST JSON
+			postPayload = [:];
+			postPayload['widgetTokens'] = widgetTokens;
+			postPayload['sharable'] = true;
+			postPayload['name'] = item.name;
+			postPayload['groupId'] = dashboardGroup;
+			// Append template that was obtained from the Golden Dash
+			postPayload['template'] = template;
+
+			// Transform JSON into JSON string
+			json = JsonOutput.toJson(postPayload);
+			//println(json);
+
+			///////////////////////////
+			// POST DASHBOARD COPIES //
+			///////////////////////////
+
+			requestVerb = 'POST';
+			//resourcePath = "/dashboard/dashboards/${dashId}";
+			resourcePath = "/dashboard/dashboards";
+
+			queryParameters = '';
+			// Use json constructed earlier as payload for POST
+			data = json;
+
+			responseDict = LMPOST(accessId, accessKey, account, requestVerb, resourcePath, queryParameters, data);
+			responseBody = responseDict.body;
+			responseCode = responseDict.code;
+			println("Response Code: ${responseCode}");
+			println("Response Body: ${responseBody}");
+			// Parse responseBody (JSON string) as JSON object
+			output = new JsonSlurper().parseText(responseBody);
+		}
 	}
 }
+
 
 return 0;
 
