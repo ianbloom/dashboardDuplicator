@@ -27,15 +27,18 @@ def dashboardGroupName = 'Need_A_Place';
 // ID of the device group you would like treat as root group
 def deviceGroup = '39';
 def fileName = 'goldenDash.txt';
+def groupFileName = 'groups.txt';
 
 // fileExists is a boolean value that tests for the existence of a template
 // if !fileExists then this is first run, and we create the file
 def fileExists = new File(fileName).exists();
+def groupFileExists = new File(groupFileName).exists();
 
-if(fileExists) {
+if(fileExists && groupFileExists) {
 	println('the file exists');
 	// Open the file as text for comparison to current goldenDash template
 	file = new File(fileName).text;
+	file2 = new File(groupFileName).text;
 	
 	////////////////////////////
 	// GET DASHBOARD TEMPLATE //
@@ -49,16 +52,28 @@ if(fileExists) {
 
 	responseDict = LMGET(accessId, accessKey, account, requestVerb, resourcePath, queryParameters, data);
 	responseBody = responseDict.body;
+	// Parse responseBody (JSON string) as JSON object
+	template = new JsonSlurper().parseText(responseBody);
+
+	////////////////////////
+	// GET GROUP TEMPLATE //
+	////////////////////////
+
+	requestVerb = 'GET';
+	resourcePath = "/device/groups";
+	queryParameters = "?filter=parentId~${deviceGroup}&fields=name,id";
+	data = '';
+
+	responseDict2 = LMGET(accessId, accessKey, account, requestVerb, resourcePath, queryParameters, data);
+	responseBody2 = responseDict.body;
 
 	// Check if current goldenDash matches file
-	if(file == responseBody) {
+	if(file == responseBody && file2 == responseBody2) {
 		println('MATCH');
 		return 0;
 	}
 	else {
 		println('NO MATCH');
-		// Parse responseBody (JSON string) as JSON object
-		template = new JsonSlurper().parseText(responseBody);
 
 		////////////////////////////
 		// WRITE TEMPLATE TO FILE //
@@ -66,6 +81,9 @@ if(fileExists) {
 
 		file = new File(fileName);
 		file.write(responseBody);
+		
+		file2 = new File(groupFileName);
+		file2.write(responseBody2);
 
 		///////////////////////
 		// GET DEVICE GROUPS //
@@ -282,6 +300,21 @@ else {
 
 	file = new File(fileName);
 	file.write(responseBody);
+
+	//////////////////////////
+	// WRITE GROUPS TO FILE //
+	//////////////////////////
+
+	requestVerb = 'GET';
+	resourcePath = "/device/groups";
+	queryParameters = "?filter=parentId~${deviceGroup}&fields=name,id";
+	data = '';
+
+	responseDict2 = LMGET(accessId, accessKey, account, requestVerb, resourcePath, queryParameters, data);
+	responseBody2 = responseDict.body;
+
+	file2 = new File(groupFileName);
+	file2.write(responseBody2);
 	
 	///////////////////////
 	// GET DEVICE GROUPS //
